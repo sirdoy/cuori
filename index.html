@@ -1,223 +1,91 @@
-<?php
-/*
- * Script per la gestione dei documenti polizze
- * Proprietario: Federico Manfredi
- * Data di creazione: 10-12-2024
- * Descrizione: Questo script gestisce il movimento e la rinominazione dei file associati alle polizze, oltre ad aggiornare o eliminare i record corrispondenti nel database.
- * Versione: 1.0.0
- * Ultima modifica: 10-12-2024
- * Email per contatti o supporto: federico.manfredi@netgloo.com
- */
-session_start();
-
-$startTimestamp = microtime(true);
-
-const DEBUG = true; // Attiva i log di debug
-const PATH_TO_ROOT = __DIR__ . '/../../'; // Percorso base del progetto
-
-// Variabili per i percorsi
-$sourcePath = PATH_TO_ROOT . "docPolizze"; // Percorso della cartella di partenza
-$destinationPath = PATH_TO_ROOT . "docPolizze"; // Percorso della cartella di destinazione
-
-// Configurazione comportamento finale
-// Opzioni possibili: "update", "delete", "none"
-const FINAL_ACTION = "update"; // Può essere "update", "delete", o "none"
-
-// Indirizzo email per le notifiche di errore
-$notificationEmail = "federico.manfredi@netgloo.com";
-
-require("../common.php");
-require "../utility/helpers.php";
-
-$log = logger();
-
-// Funzioni per i colori
-function colorize($text, $colorCode)
-{
-    return "\033[" . $colorCode . "m" . $text . "\033[0m";
-}
-
-function logInfo($message)
-{
-    echo colorize("[INFO] $message\n", "32"); // Verde
-}
-
-function logError($message)
-{
-    echo colorize("[ERROR] $message\n", "31"); // Rosso
-}
-
-function logProgress($message)
-{
-    echo colorize("\r[PROGRESS] $message", "33"); // Giallo
-}
-
-logInfo("=== Script Gestione Documenti Polizze ===");
-
-$log->info("Script avviato.");
-logInfo("Script avviato.");
-
-// Connetti al database
-$connection = dbConnect();
-if (!$connection) {
-    $error = "Errore nella connessione al database.";
-    $log->error($error);
-    logError($error);
-    mail($notificationEmail, "Errore script PHP", $error);
-    exit;
-}
-$log->info("Connessione al database avvenuta con successo.");
-logInfo("Connessione al database riuscita.");
-
-// Query per recuperare i dati necessari
-$query = "
-    SELECT 
-        dp.file AS file_name,
-        p.numero AS polizza_numero,
-        p.ramo AS ramo,
-        p.id AS id_polizza,
-        c.piva_cf AS codice_fiscale,
-        dp.id AS documento_id
-    FROM 
-        documenti_polizze dp
-    INNER JOIN 
-        polizze p ON dp.polizza = p.id
-    INNER JOIN 
-        clienti c ON p.cliente = c.id
-";
-
-$log->debug("Esecuzione della query: $query");
-logInfo("Recupero dei dati...");
-$result = mysqli_query($connection, $query);
-
-if (!$result) {
-    $error = "Errore durante l'esecuzione della query: " . mysqli_error($connection);
-    $log->error($error);
-    logError($error);
-    mail($notificationEmail, "Errore script PHP", $error);
-    exit;
-}
-
-$log->info("Query eseguita con successo.");
-logInfo("Dati recuperati con successo.");
-
-// Processa i risultati
-$rowCount = 0;
-$totalRows = mysqli_num_rows($result);
-$updateQueries = [];
-$deleteQueries = [];
-
-logInfo("Inizio elaborazione dei file...");
-
-while ($row = mysqli_fetch_assoc($result)) {
-    $rowCount++;
-    $fileName = $row['file_name'];
-    $polizzaNumero = $row['polizza_numero'];
-    $ramo = $row['ramo'];
-    $idPolizza = $row['id_polizza'];
-    $codiceFiscale = $row['codice_fiscale'];
-    $documentoId = $row['documento_id'];
-
-    // Percorso completo del file di origine
-    $sourceFile = $sourcePath . '/' . $fileName;
-
-    if (!file_exists($sourceFile)) {
-        // Se il file non esiste, cancella la riga nel DB
-        $error = "File non trovato: $sourceFile. Eliminando la riga corrispondente dal DB.";
-        $log->error($error);
-        logError("File non trovato: $fileName");
-
-        // Query per cancellare il documento dal DB
-        if (FINAL_ACTION !== "none") {
-            $deleteQueries[] = "
-                DELETE FROM documenti_polizze
-                WHERE id = " . intval($documentoId) . "
-            ";
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuori Animati con SVG</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        mail($notificationEmail, "Errore script PHP", $error);
-        continue;
-    }
 
-    // Determina la cartella di destinazione
-    $destinationFolder = $destinationPath . '/' . $codiceFiscale;
-
-    // Crea la cartella se non esiste
-    if (!is_dir($destinationFolder)) {
-        if (!mkdir($destinationFolder, 0755, true)) {
-            $error = "Errore nella creazione della cartella: $destinationFolder";
-            $log->error($error);
-            logError("Creazione cartella fallita: $destinationFolder");
-            mail($notificationEmail, "Errore script PHP", $error);
-            continue;
+        .heart {
+            position: absolute;
+            animation: scaleAndDisappear 3s ease-in-out infinite;
         }
-        $log->info("Cartella creata: $destinationFolder");
-        logInfo("Cartella creata: $destinationFolder");
-    }
 
-    // Rinominazione del file
-    $newFileName = "{$polizzaNumero}-{$ramo}-{$idPolizza}";
-    $destinationFile = $destinationFolder . '/' . $newFileName;
-
-    // Sposta il file
-    if (!rename($sourceFile, $destinationFile)) {
-        $error = "Errore nello spostamento del file $sourceFile a $destinationFile";
-        $log->error($error);
-        logError("Errore nello spostamento del file: $fileName");
-        mail($notificationEmail, "Errore script PHP", $error);
-        continue;
-    }
-
-    // Prepara le query in base alla configurazione
-    $newRelativePath = $codiceFiscale . '/' . $newFileName;
-    if (FINAL_ACTION === "update") {
-        $updateQueries[] = "
-            UPDATE documenti_polizze
-            SET file = '" . mysqli_real_escape_string($connection, $newRelativePath) . "'
-            WHERE file = '" . mysqli_real_escape_string($connection, $fileName) . "'
-        ";
-    } elseif (FINAL_ACTION === "delete") {
-        $deleteQueries[] = "
-            DELETE FROM documenti_polizze
-            WHERE file = '" . mysqli_real_escape_string($connection, $fileName) . "'
-        ";
-    }
-
-    // Mostra progresso
-    $progress = number_format(($rowCount / $totalRows) * 100, 2);
-    logProgress("Elaborazione: $rowCount/$totalRows ($progress%) completata.");
-}
-echo "\n";
-logInfo("Elaborazione completata per $rowCount righe.");
-
-// Esegui le operazioni finali
-if (FINAL_ACTION === "update" && !empty($updateQueries)) {
-    logInfo("Aggiornamento dei path a database...");
-    foreach ($updateQueries as $query) {
-        if (!mysqli_query($connection, $query)) {
-            $error = "Errore nell'aggiornamento del database: " . mysqli_error($connection);
-            $log->error($error);
-            logError("Errore aggiornamento database.");
-            mail($notificationEmail, "Errore script PHP", $error);
+        .heart svg {
+            width: 100%;
+            height: 100%;
         }
-    }
-    logInfo("Aggiornamento completato.");
-} elseif (FINAL_ACTION === "delete" && !empty($deleteQueries)) {
-    logInfo("Eliminazione delle righe a database...");
-    foreach ($deleteQueries as $query) {
-        if (!mysqli_query($connection, $query)) {
-            $error = "Errore nell'eliminazione dal database: " . mysqli_error($connection);
-            $log->error($error);
-            logError("Errore eliminazione database.");
-            mail($notificationEmail, "Errore script PHP", $error);
+
+        .heart.white svg path {
+            fill: white;
         }
-    }
-    logInfo("Eliminazione completata.");
-} else {
-    logInfo("Nessuna operazione finale configurata.");
-}
 
-// Disconnetti dal database
-dbDisconnect($connection);
+        .heart.red svg path {
+            fill: red;
+        }
 
-$executionTime = microtime(true) - $startTimestamp;
-logInfo("Script completato in {$executionTime} secondi.");
+        @keyframes scaleAndDisappear {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(var(--scale, 1.5)); /* Varied scaling */
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<script>
+  function createHeart() {
+    const heart = document.createElement('div');
+    const randomColor = Math.random() < 0.5 ? 'white' : 'red';
+    heart.classList.add('heart', randomColor);
+
+    // SVG per il cuore
+    const svgHeart = `
+                <svg viewBox="0 0 32 29.6" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M23.6 0c-3.1 0-5.8 2.3-6.8 5.6C15.2 2.3 12.4 0 9.6 0 4.3 0 0 4.3 0 9.6c0 6.6 7.4 11.5 15.6 19.1 8.2-7.5 15.6-12.5 15.6-19.1 0-5.3-4.3-9.6-9.6-9.6z"/>
+                </svg>
+            `;
+    heart.innerHTML = svgHeart;
+
+    // Variabili per dimensioni casuali e posizioni
+    const size = Math.random() * 100 + 30;  // Dimensioni variabili da 30px a 130px
+    heart.style.setProperty('--scale', (Math.random() * 1.5 + 1)); // Scala variabile per animazione
+    heart.style.width = `${size}px`;
+    heart.style.height = `${size}px`;
+
+    const x = Math.random() * window.innerWidth;
+    const y = Math.random() * window.innerHeight;
+    heart.style.left = `${x}px`;
+    heart.style.top = `${y}px`;
+
+    document.body.appendChild(heart);
+
+    setTimeout(() => {
+      heart.remove();
+    }, 3000);  // Rimuovi il cuore dopo l'animazione (3 secondi)
+  }
+
+  setInterval(createHeart, 200);  // Aggiungi un cuore ogni 200ms (numero maggiore di cuori)
+</script>
+
+</body>
+</html>
