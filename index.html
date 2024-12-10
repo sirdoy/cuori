@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tanti cuori per Alle</title>
+    <title>Cuori Animati con SVG</title>
     <style>
         body {
             margin: 0;
@@ -14,10 +14,30 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            font-family: 'Arial', sans-serif;
+            position: relative;
+        }
+
+        /* Sfondo con il testo */
+        .background-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10vw;
+            color: rgba(255, 255, 255, 0.1);
+            white-space: normal;
+            word-wrap: break-word;
+            text-align: center;
+            pointer-events: none;
+            z-index: -1;
         }
 
         .heart {
             position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             animation: scaleAndDisappear 3s ease-in-out infinite;
         }
 
@@ -34,13 +54,20 @@
             fill: red;
         }
 
+        .heart .text {
+            position: absolute;
+            font-weight: bold;
+            color: black;
+            text-align: center;
+        }
+
         @keyframes scaleAndDisappear {
             0% {
                 transform: scale(0);
                 opacity: 1;
             }
             50% {
-                transform: scale(var(--scale, 1.5)); /* Varied scaling */
+                transform: scale(var(--scale, 1.5));
                 opacity: 0.8;
             }
             100% {
@@ -51,6 +78,9 @@
     </style>
 </head>
 <body>
+
+<!-- Testo di sfondo -->
+<div class="background-text">Sei la donna più stupefacente del creato</div>
 
 <script>
   function createHeart() {
@@ -66,8 +96,17 @@
             `;
     heart.innerHTML = svgHeart;
 
+    // Testo dentro del cuore (ALLE)
+    const textElement = document.createElement('div');
+    textElement.classList.add('text');
+    textElement.textContent = "ALLE";
+    heart.appendChild(textElement);
+
     // Variabili per dimensioni casuali e posizioni
     const size = Math.random() * 100 + 30;  // Dimensioni variabili da 30px a 130px
+    const textSize = size * 0.3; // La dimensione del testo "ALLE" sarà proporzionale alla dimensione del cuore (30%)
+    textElement.style.fontSize = `${textSize}px`; // Imposta la dimensione del testo dentro il cuore
+
     heart.style.setProperty('--scale', (Math.random() * 1.5 + 1)); // Scala variabile per animazione
     heart.style.width = `${size}px`;
     heart.style.height = `${size}px`;
